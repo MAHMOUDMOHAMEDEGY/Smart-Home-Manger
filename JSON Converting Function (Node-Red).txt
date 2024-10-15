@@ -1,0 +1,13 @@
+var vettori = msg.payload.split(';');
+var temperature = vettori[0].split(',').map(Number);
+var umidita = vettori[1].split(',').map(Number);
+var luminosita = vettori[2].split(',').map(Number);
+var records = temperature.map(function(temp, index) {
+    return {
+        "temperatura": temp,
+        "umidita": umidita[index],
+        "luminosita": luminosita[index]
+    };
+});
+msg.payload = {"records": records};
+return msg;

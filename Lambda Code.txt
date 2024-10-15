@@ -1,0 +1,143 @@
+import json
+import boto3
+from statistics import mean
+from decimal import Decimal
+from datetime import datetime
+
+iot_data = boto3.client('iot', region_name='us-east-1')
+dynamodb = boto3.resource('dynamodb')
+cloudwatch = boto3.client('cloudwatch')
+
+table_name = 'Mean_Output'
+table = dynamodb.Table(table_name)
+
+sns = boto3.client('sns')
+
+topic_arn = 'arn:aws:sns:us-east-1:339713093591:My_Topic'
+
+def lambda_handler(event, context):
+    total_temperatura = 0
+    total_umidita = 0
+    total_luminosita = 0
+    count = 0
+
+    for record in event['records']:
+        temperatura = record['temperatura']
+        umidita = record['umidita']
+        luminosita = record['luminosita']
+
+        total_temperatura += temperatura
+        total_umidita += umidita
+        total_luminosita += luminosita
+
+        count += 1
+
+    if count > 0:
+        media_temperatura = total_temperatura / count
+        media_umidita = total_umidita / count
+        media_luminosita = total_luminosita / count
+    else:
+        media_temperatura = 0
+        media_umidita = 0
+        media_luminosita = 0  
+
+    now = datetime.now()
+    timestamp_str = now.strftime("%Y-%m-%d %H:%M:%S")
+
+    table.put_item(
+        Item={
+            'id': timestamp_str,
+            'media_temperatura': Decimal(str(media_temperatura)),
+            'media_umidita': Decimal(str(media_umidita)),
+            'media_luminosita': Decimal(str(media_luminosita))
+        }
+    )
+
+    cloudwatch.put_metric_data(
+        Namespace='TemperatureMetrics',
+        MetricData=[
+            {
+                'MetricName': 'MediaTemperatura',
+                'Dimensions': [
+                    {
+                        'Name': 'FunctionName',
+                        'Value': 'Mean_Calculator'
+                    },
+                ],
+                'Value': media_temperatura
+            },
+        ]
+    )
+    
+    
+    cloudwatch.put_metric_data(
+        Namespace='UmidityMetrics',
+        MetricData=[
+            {
+                'MetricName': 'MediaUmidita',
+                'Dimensions': [
+                    {
+                        'Name': 'FunctionName',
+                        'Value': 'Mean_Calculator'
+                    },
+                ],
+                'Value': media_umidita
+            },
+        ]
+    )    
+
+
+    cloudwatch.put_metric_data(
+        Namespace='BrightnessMetrics',
+        MetricData=[
+            {
+                'MetricName': 'MediaLuminosita',
+                'Dimensions': [
+                    {
+                        'Name': 'FunctionName',
+                        'Value': 'Mean_Calculator'
+                    },
+                ],
+                'Value': media_luminosita
+            },
+        ]
+    )
+
+
+    if media_temperatura > 27:
+        sns.publish(
+            TopicArn=topic_arn,
+            Message='Warning!\nThe average temperature is greater than 27°!'
+        )
+        
+    if media_temperatura < 17:
+        sns.publish(
+            TopicArn=topic_arn,
+            Message='Warning!\nThe average temperature is less than 17°!'
+        )
+
+    if media_umidita > 70:
+        sns.publish(
+            TopicArn=topic_arn,
+            Message='Attention!\nThe average humidity is greater than 70%!'
+        )
+
+    if media_umidita < 40:
+        sns.publish(
+            TopicArn=topic_arn,
+            Message='Attention!\nThe average humidity is less than 40%!'
+        )
+
+    if media_luminosita > 70:
+        sns.publish(
+            TopicArn=topic_arn,
+            Message='Warning!\nThe average brightness is greater than 70 % !'
+        )
+
+    return {
+        'body': json.dumps('Processing Completed!'),
+        'media_temperatura': media_temperatura,
+        'media_umidita': media_umidita,
+        'media_luminosita': media_luminosita
+    }
+

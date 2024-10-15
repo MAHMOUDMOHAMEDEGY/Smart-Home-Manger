@@ -1,0 +1,15 @@
+var vettori = msg.payload.split(';');
+var temperature = vettori[0].split(',').map(Number);
+var umidita = vettori[1].split(',').map(Number);
+var luminosita = vettori[2].split(',').map(Number);
+
+var mediaTemperature = temperature.reduce((a, b) => a + b, 0) / temperature.length;
+var mediaUmidita = umidita.reduce((a, b) => a + b, 0) / umidita.length;
+var mediaLuminosita = luminosita.reduce((a, b) => a + b, 0) / luminosita.length;
+
+
+return [
+    {payload: mediaTemperature, topic: "mediaTemperatura"},
+    {payload: mediaUmidita, topic: "mediaUmidita"},
+    {payload: mediaLuminosita, topic: "mediaLuminosita"}
+];
